@@ -7,6 +7,7 @@ import logging
 from urllib.parse import quote_plus
 from bottle import get, run
 import threading
+import urllib.request
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,6 +54,14 @@ def send_message(text, chat_id):
     url = URL + f"sendMessage?text={text}&chat_id={chat_id}&parse_mode=Markdown"
     return get_url(url)
 
+############
+#
+# UTILS
+#
+############
+def get_public_ip():
+    ip_addr = urllib.request.urlopen('https://www.ipify.org/').read().decode('utf8')
+    return ip_addr
 
 ############
 #
