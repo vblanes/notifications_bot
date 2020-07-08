@@ -60,8 +60,16 @@ def send_message(text, chat_id):
 #
 ############
 def get_public_ip():
-    ip_addr = urllib.request.urlopen('https://www.ipify.org/').read().decode('utf8')
+    ip_addr = urllib.request.urlopen('https://ident.me').read().decode('utf8')
     return ip_addr
+
+def get_temperature():
+    try:
+        with open('/sys/class/thermal/thermal_zone0/temp', 'r') as temperature_file:
+            return float(temperature_file.read().strip())/1000
+    except IOError:
+        return -1
+
 
 ############
 #
@@ -77,8 +85,11 @@ def send_notification(chat_id, text):
 
 def process_single_message(update):
     chat_from = update.get('message').get('from').get('id')
-    logger.info(send_message(f"Your telegram ID is: {chat_from}.\nUse your ID to call me in the send\\_notification method", chat_id=int(chat_from)))
-    return
+    logger.info(get_public_ip())
+    logger.info(send_message(f'Your telegram ID is: {chat_from}.\nUse your ID to call me in the send\\_notification method\n'
+                             f'IP Address to access the services is {get_public_ip()}\n'
+                             f'Server temperature is {get_temperature()} Cº', chat_id=int(chat_from)))
+
 
 def process_batch_messages(last_update_id):
     """

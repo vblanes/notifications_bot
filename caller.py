@@ -1,12 +1,10 @@
 import urllib.request
-import json
 import logging
 from urllib.parse import quote
+import time
+from os import environ
 
-if __name__ == '__main__':
-
-    chat_id = 6771943
-    text = 'Text with spaces'
+def send_notifications(chat_id, text):
     host = f"http://localhost:8080/send_notification/{chat_id}/{quote(text)}"
 
     req = urllib.request.Request(url=host)
@@ -14,3 +12,7 @@ if __name__ == '__main__':
     json_response = response_stream.read()
     logging.info(json_response)
 
+if __name__ == '__main__':
+    print("Aqui hago cosas muy largas y mientras acaba me voy a ver la tele!")
+    time.sleep(3)
+    send_notifications(int(environ.get('MY_TELEGRAM_ID')), 'Entrenamiento ML terminado!')
