@@ -5,7 +5,7 @@ import time
 from os import environ
 
 def send_notifications(chat_id, text):
-    host = f"http://localhost:8080/send_notification/{chat_id}/{quote(text)}"
+    host = f"http://192.168.18.10:8080/send_notification/{chat_id}/{quote(text)}"
 
     req = urllib.request.Request(url=host)
     response_stream = urllib.request.urlopen(req)
