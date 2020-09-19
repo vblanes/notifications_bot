@@ -82,11 +82,12 @@ def get_temperature():
 def send_notification(chat_id, text):
     # check if the user is a registered one
     dbm = DBManager()
-    # TODO implement proper response
     if dbm.exist_user(chat_id):
         logger.info(send_message(text=text, chat_id=chat_id))
+        return bottle.HTTPResponse(status=200)
     else:
-        pass
+        return bottle.HTTPResponse(status=400)
+        
 
 
 def account_check(telegramid):
@@ -146,15 +147,23 @@ def process_single_message(update):
     if role == 'admin':
         if input_text == 'gettemp':
             logger.info(send_message(f'Temperature -> {get_temperature()}ºC', telegram_id_from))
-        # TODO implement logic to those cases, can be diffent functions in a dict
         elif input_text == 'listcodes':
-            pass
+            codes_list = dbm.list_codes()
+            logger.info(send_message('\n'.join(codes_list), chat_id=telegram_id_from))
         # only add one code
         elif input_text == 'addcode':
-            pass
+            # generate the code
+            # TODO
+            code = None
+            # add it to the database
+            dbm.add_code(code=)
+            logger.info(send_message(""))
         # only remove last code to not overcomplicate logic
         elif input_text == 'removecode':
-            pass
+            codes_list = dbm.list_codes()
+            dbm.delete_code(codes_list[-1])
+            logger.info(send_message("Last code deleted!", chat_id=telegram_id_from))
+            
     else:
         logger.info(send_message(f'Your telegram ID is: {telegram_id_from}.\nUse your ID to call me in the '
                                  f'send\\_notification method\n'
@@ -167,7 +176,6 @@ def process_batch_messages(last_update_id):
     """
     updates = get_updates(last_update_id)
     if 'result' in updates and len(updates['result']) > 0:
-        logger.info("some notifications!")
         last_update_id = get_last_update_id(updates) + 1
         for update in updates['result']:
             process_single_message(update)
