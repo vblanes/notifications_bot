@@ -9,9 +9,14 @@ from bottle import get, run
 import threading
 import urllib.request
 from dbmanager import DBManager
+# random string generator
+import string
+import random
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+CODE_LENGTH = 20
 
 #############
 #
@@ -50,7 +55,7 @@ def get_last_update_id(updates):
     return max([int(el['update_id']) for el in updates['result']])
 
 
-def send_message(text, chat_id):
+def send_message(text:str, chat_id:int):
     text = quote_plus(text)
     url = URL + f"sendMessage?text={text}&chat_id={chat_id}&parse_mode=Markdown"
     return get_url(url)
@@ -71,6 +76,9 @@ def get_temperature():
     except IOError:
         return -1
 
+def get_random_string(length:int):
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for i in range(length))
 
 ############
 #
@@ -78,43 +86,53 @@ def get_temperature():
 #
 ############
 
-@get('/send_notification/<chat_id>/<text>')
-def send_notification(chat_id, text):
+@get('/send_notification/<telegram_id>/<text>')
+def send_notification(telegram_id, text):
     # check if the user is a registered one
     dbm = DBManager()
-    # TODO implement proper response
-    if dbm.exist_user(chat_id):
-        logger.info(send_message(text=text, chat_id=chat_id))
+    if dbm.exist_user_by_telegram_id(telegram_id):
+        logger.info(send_message(text=text, chat_id=telegram_id))
     else:
-        pass
+        logger.warning("User not registered")
 
 
-def account_check(telegramid):
+def account_check(telegram_id):
     # return if user exist + username + role
     # e.g. (False, None, None) or (12345, 'Pepet', 'user')
     dbm = DBManager()
-    resultset = dbm.get_user(telegramid)
+    resultset = dbm.get_user(telegram_id)
+    logger.info(resultset)
     if len(resultset) == 0:
         return (False, None, None)
     else:
         # its a shame there is no named tuple
         return (True, resultset[1], resultset[3])
-    
+
+
+def info_message(telegram_id_from):
+    logger.info(send_message(f'Your telegram ID is: {telegram_id_from}.\nUse your ID to call me in the '
+                             f'send\\_notification method\n'
+                             f'IP Address to access the services is {get_public_ip()}\n', chat_id=telegram_id_from))
 
 def process_single_message(update):
-    telegram_id_from = update.get('message').get('from').get('id')
+    # discard estrange messages
+    try:
+        telegram_id_from = int(update.get('message').get('from').get('id'))
+    except AttributeError:
+        return
     # check user "credentials"
     is_registered, username, role = account_check(telegram_id_from)
+    logging.info(f'{telegram_id_from} is_registered -> {is_registered}')
     # kind of message to the bot; allowed: plain text and call_back
     if 'callback_query' in update:
-        input_text = update.get('callback_query').get('data')
+        input_text = str(update.get('callback_query').get('data'))
     elif 'message' in update:
-        input_text = update.get('message').get('text')
+        input_text = str(update.get('message').get('text'))
     else:
         input_text = None
 
     # Discard incorrect message formats
-    if telegram_id_from is None or input_text is None:
+    if input_text is None:
         logger.info(send_message('This bot only supports text messages, commands and callbacks', telegram_id_from))
         return
 
@@ -144,21 +162,35 @@ def process_single_message(update):
 
     # Users only can get the conectivity info
     if role == 'admin':
+        dbm = DBManager()
         if input_text == 'gettemp':
             logger.info(send_message(f'Temperature -> {get_temperature()}ºC', telegram_id_from))
-        # TODO implement logic to those cases, can be diffent functions in a dict
         elif input_text == 'listcodes':
-            pass
-        # only add one code
+            codes = dbm.list_codes()
+            codes_msg =  '\n'.join(codes) if codes else 'No codes yet!'
+            logging.info(send_message(codes_msg,chat_id=telegram_id_from))
+
+        # generate, add the code, send it to the user
         elif input_text == 'addcode':
-            pass
+            new_code = get_random_string(CODE_LENGTH)
+            dbm.add_code(new_code)
+            logger.info(send_message(f'New code generated: {new_code}', chat_id=telegram_id_from))
+
         # only remove last code to not overcomplicate logic
+        # this is VERY suboptimal, but it works atm
         elif input_text == 'removecode':
-            pass
+            all_codes = dbm.list_codes()
+            if all_codes:
+                dbm.delete_code(all_codes[-1])
+                # remove last element
+                codes = all_codes[:-1]
+                codes_msg = '\n'.join(codes) if codes else 'No codes yet!'
+                logging.info(send_message(codes_msg,chat_id=telegram_id_from))
+
+        else:
+            info_message(telegram_id_from)
     else:
-        logger.info(send_message(f'Your telegram ID is: {telegram_id_from}.\nUse your ID to call me in the '
-                                 f'send\\_notification method\n'
-                             f'IP Address to access the services is {get_public_ip()}\n', chat_id=int(telegram_id_from)))
+        info_message(telegram_id_from)
 
 
 def process_batch_messages(last_update_id):
@@ -189,4 +221,4 @@ if __name__ == '__main__':
     while True:
         last_update_id = process_batch_messages(last_update_id)
         # be gentle with Telegram servers
-        sleep(0.5)
+        sleep(0.7)

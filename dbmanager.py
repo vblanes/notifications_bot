@@ -1,10 +1,13 @@
 import sqlite3
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class DBManager:
 
     def __init__(self):
-        self.connection = sqlite3.connect('')
+        self.connection = sqlite3.connect('database.sqlite3')
         self.cursor = self.connection.cursor()
 
     def __del__(self):
@@ -15,21 +18,32 @@ class DBManager:
     # Users
     ###########
     def add_user(self, telegram_id, user, role='user', password=None):
-        query = 'INSERT INTO users (telegramid, username, password, userrole)' \
+        query = 'INSERT INTO users (telegram_id, username, password, userrole)' \
                 'VALUES (?, ?, ?, ?)'
         self.cursor.execute(query, (telegram_id, user, password, role))
+        self.connection.commit()
 
-    def exist_user(self, user):
-        query = "SELECT COUNT(1) FROM users WHERE username = ?"
+    def exist_user(self, user: str) -> int:
+        query = "SELECT COUNT(1) FROM users WHERE username= ?"
         self.cursor.execute(query, (user,))
         rs = self.cursor.fetchall()
         # rs should be a list of tuples
         return rs[0][0]
 
-    def get_user(self, telegram_id):
-        query = "SELECT telegram_id, username, password, userrole from user where telegram_id= ? "
+    def exist_user_by_telegram_id(self, telegram_id: int) -> int:
+        query = "SELECT COUNT(1) FROM users WHERE telegram_id= ?"
         self.cursor.execute(query, (telegram_id,))
-        return self.cursor.fetchall()
+        rs = self.cursor.fetchall()
+        # rs should be a list of tuples
+        return rs[0][0]
+
+    def get_user(self, telegram_id: int) -> tuple:
+        logger.info(f'Checking possible user {telegram_id}')
+        query = "SELECT telegram_id, username, password, userrole from users where telegram_id = ?"
+        self.cursor.execute(query, (telegram_id,))
+        rs = self.cursor.fetchall()
+        return rs[0] if rs else []
+
 
     ##########
     # Codes
@@ -37,10 +51,12 @@ class DBManager:
     def add_code(self, code):
         query = "INSERT INTO codes (code) VALUES (?)"
         self.cursor.execute(query, (code,))
+        self.connection.commit()
 
     def delete_code(self, code):
         query = "DELETE FROM codes WHERE code = ?"
         self.cursor.execute(query, (code,))
+        self.connection.commit()
 
     def exist_code(self, code):
         query = "SELECT COUNT(1) FROM codes WHERE code = ?"
@@ -53,5 +69,6 @@ class DBManager:
         query = "SELECT * FROM codes"
         self.cursor.execute(query)
         rs = self.cursor.fetchall()
+        logger.info(f"List fo codes rs: {rs}")
         # remove 1-element tuples
         return [el[0] for el in rs]
