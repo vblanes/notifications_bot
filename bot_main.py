@@ -1,11 +1,13 @@
 from os import environ
+import string
+import random
 import sys
 from time import sleep
 import json
 import requests
 import logging
 from urllib.parse import quote_plus
-from bottle import get, run
+from bottle import get, run, HTTPResponse
 import threading
 import urllib.request
 from dbmanager import DBManager
@@ -18,13 +20,13 @@ logger = logging.getLogger(__name__)
 
 CODE_LENGTH = 20
 
+
 #############
 #
 # GENERAL TELEGRAM METHODS
 #
 #############
-
-def get_url(url):
+def get_url(url: str):
     response = requests.get(url)
     content = response.content.decode("utf8")
     return content
@@ -60,6 +62,7 @@ def send_message(text:str, chat_id:int):
     url = URL + f"sendMessage?text={text}&chat_id={chat_id}&parse_mode=Markdown"
     return get_url(url)
 
+
 ############
 #
 # UTILS
@@ -69,10 +72,11 @@ def get_public_ip():
     ip_addr = urllib.request.urlopen('https://ident.me').read().decode('utf8')
     return ip_addr
 
+
 def get_temperature():
     try:
         with open('/sys/class/thermal/thermal_zone0/temp', 'r') as temperature_file:
-            return float(temperature_file.read().strip())/1000
+            return float(temperature_file.read().strip()) / 1000
     except IOError:
         return -1
 
@@ -90,10 +94,13 @@ def get_random_string(length:int):
 def send_notification(telegram_id, text):
     # check if the user is a registered one
     dbm = DBManager()
-    if dbm.exist_user_by_telegram_id(telegram_id):
-        logger.info(send_message(text=text, chat_id=telegram_id))
+
+    if dbm.exist_user_by_telegram_id(chat_id):
+        logger.info(send_message(text=text, chat_id=chat_id))
+        return HTTPResponse(status=200)
     else:
-        logger.warning("User not registered")
+        return HTTPResponse(status=400)
+
 
 
 def account_check(telegram_id):
@@ -103,7 +110,7 @@ def account_check(telegram_id):
     resultset = dbm.get_user(telegram_id)
     logger.info(resultset)
     if len(resultset) == 0:
-        return (False, None, None)
+        return False, None, None
     else:
         # its a shame there is no named tuple
         return (True, resultset[1], resultset[3])
@@ -113,6 +120,7 @@ def info_message(telegram_id_from):
     logger.info(send_message(f'Your telegram ID is: {telegram_id_from}.\nUse your ID to call me in the '
                              f'send\\_notification method\n'
                              f'IP Address to access the services is {get_public_ip()}\n', chat_id=telegram_id_from))
+
 
 def process_single_message(update):
     # discard estrange messages
@@ -136,10 +144,11 @@ def process_single_message(update):
         logger.info(send_message('This bot only supports text messages, commands and callbacks', telegram_id_from))
         return
 
+    # TODO maybe not create an instace every time???
+    dbm = DBManager()
     # User is not registered
     if not is_registered:
         # check if the message is a code!
-        dbm = DBManager()
         if dbm.exist_code(input_text):
             # pick info about the user and register it
             field_username = update.get('message').get('from').get('username', '')
@@ -159,12 +168,12 @@ def process_single_message(update):
             send_message('To register yourself in the bot, copy a valid registration code', telegram_id_from)
             return
 
-
     # Users only can get the conectivity info
     if role == 'admin':
         dbm = DBManager()
         if input_text == 'gettemp':
             logger.info(send_message(f'Temperature -> {get_temperature()}ºC', telegram_id_from))
+
         elif input_text == 'listcodes':
             codes = dbm.list_codes()
             codes_msg =  '\n'.join(codes) if codes else 'No codes yet!'
@@ -192,19 +201,16 @@ def process_single_message(update):
     else:
         info_message(telegram_id_from)
 
-
-def process_batch_messages(last_update_id):
+def process_batch_messages(last_update_id_: int):
     """
     Read the messages, process them 
     """
-    updates = get_updates(last_update_id)
+    updates = get_updates(last_update_id_)
     if 'result' in updates and len(updates['result']) > 0:
-        logger.info("some notifications!")
-        last_update_id = get_last_update_id(updates) + 1
+        last_update_id_ = get_last_update_id(updates) + 1
         for update in updates['result']:
             process_single_message(update)
-    return last_update_id
-
+    return last_update_id_
 
 
 if __name__ == '__main__':
@@ -213,10 +219,10 @@ if __name__ == '__main__':
         logger.error("Unable to read token!")
         sys.exit(-1)
     URL = f"https://api.telegram.org/bot{PRIVATE_TOKEN}/"
-    
+
     # Host bottle API
     threading.Thread(target=run, kwargs=dict(host='0.0.0.0', port=8080)).start()
-    
+
     last_update_id = None
     while True:
         last_update_id = process_batch_messages(last_update_id)

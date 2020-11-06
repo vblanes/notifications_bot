@@ -1,5 +1,7 @@
 import sqlite3
 import logging
+from typing import Optional
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,6 +19,7 @@ class DBManager:
     ###########
     # Users
     ###########
+
     def add_user(self, telegram_id, user, role='user', password=None):
         query = 'INSERT INTO users (telegram_id, username, password, userrole)' \
                 'VALUES (?, ?, ?, ?)'
@@ -26,7 +29,10 @@ class DBManager:
     def exist_user(self, user: str) -> int:
         query = "SELECT COUNT(1) FROM users WHERE username= ?"
         self.cursor.execute(query, (user,))
-        rs = self.cursor.fetchall()
+        try:
+            rs = self.cursor.fetchall()
+        except sqlite3.Error:
+            return False
         # rs should be a list of tuples
         return rs[0][0]
 
@@ -44,11 +50,10 @@ class DBManager:
         rs = self.cursor.fetchall()
         return rs[0] if rs else []
 
-
     ##########
     # Codes
     ##########
-    def add_code(self, code):
+    def add_code(self, code) -> bool:
         query = "INSERT INTO codes (code) VALUES (?)"
         self.cursor.execute(query, (code,))
         self.connection.commit()
@@ -58,14 +63,18 @@ class DBManager:
         self.cursor.execute(query, (code,))
         self.connection.commit()
 
-    def exist_code(self, code):
+
+    def exist_code(self, code) -> bool:
         query = "SELECT COUNT(1) FROM codes WHERE code = ?"
-        self.cursor.execute(query, (code,))
-        rs = self.cursor.fetchall()
+        try:
+            self.cursor.execute(query, (code,))
+            rs = self.cursor.fetchall()
         # rs should be a list of tuples
+        except sqlite3.Error:
+            return False
         return rs[0][0]
 
-    def list_codes(self):
+    def list_codes(self) -> Optional[list]:
         query = "SELECT * FROM codes"
         self.cursor.execute(query)
         rs = self.cursor.fetchall()
