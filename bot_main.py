@@ -19,6 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 CODE_LENGTH = 20
+SSH_PUBLIC_PORT = 2202
 
 
 #############
@@ -95,8 +96,8 @@ def send_notification(telegram_id, text):
     # check if the user is a registered one
     dbm = DBManager()
 
-    if dbm.exist_user_by_telegram_id(chat_id):
-        logger.info(send_message(text=text, chat_id=chat_id))
+    if dbm.exist_user_by_telegram_id(telegram_id):
+        logger.info(send_message(text=text, chat_id=telegram_id))
         return HTTPResponse(status=200)
     else:
         return HTTPResponse(status=400)
@@ -119,7 +120,8 @@ def account_check(telegram_id):
 def info_message(telegram_id_from):
     logger.info(send_message(f'Your telegram ID is: {telegram_id_from}.\nUse your ID to call me in the '
                              f'send\\_notification method\n'
-                             f'IP Address to access the services is {get_public_ip()}\n', chat_id=telegram_id_from))
+                             f'IP Address to access the services is {get_public_ip()}\n'
+                             f'ssh public port: {SSH_PUBLIC_PORT}', chat_id=telegram_id_from))
 
 
 def process_single_message(update):
@@ -195,7 +197,7 @@ def process_single_message(update):
                 codes = all_codes[:-1]
                 codes_msg = '\n'.join(codes) if codes else 'No codes yet!'
                 logging.info(send_message(codes_msg,chat_id=telegram_id_from))
-
+        # add a default message on the admin side too
         else:
             info_message(telegram_id_from)
     else:
